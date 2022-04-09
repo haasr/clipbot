@@ -8,9 +8,6 @@ const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_
 let DISCORD_CLIPBOT_TOKEN = process.env.DISCORD_CLIPBOT_TOKEN
 let DISCORD_CLIPBOARD_CHANNEL_ID = process.env.DISCORD_CLIPBOARD_CHANNEL_ID
 
-process.on('unhandledRejection', p => {
-});
-
 client.on('ready', () => {
     tag = client.user.tag;
     console.log('[ Starting client ]')
@@ -19,31 +16,44 @@ client.on('ready', () => {
     console.log(`> ${tag}'s status is set to available`);
 });
 
-client.on("message", msg => {
-    if (msg.content.toLowerCase() == '!clear') {
-        async function wipe() {
-            var msg_size = 100;
-            while (msg_size == 100) {
-                await msg.channel.bulkDelete(100)
-            .then(messages => msg_size = messages.size)
-            .catch(console.error);
-            }
-            msg.channel.send(`<@${msg.author.id}>\n> ${msg.content}`);
+client.on('messageCreate', msg => {
+    if (msg.content.toLowerCase().startsWith('!clear')) {
+        let lim = 99;
+        try {
+            x = msg.content.split(' ')[1].trim();
+            lim = parseInt(x);
+            (lim > 99) ? 99: lim;
         }
-        wipe()
+        catch {}
+        async function del() {
+            let fetched;
+            if (lim == 0) { // Let 0 specify all messages.
+                do {
+                    fetched = await msg.channel.messages.fetch({limit: 20});
+                    msg.channel.bulkDelete(fetched, true);
+                }
+                while(fetched.size >= 0);
+            }
+            else {
+                msg.channel.bulkDelete(lim, true);
+            }
+        }
+        del();
     }
-});
+})
 
 clipboardListener.startListening();
 clipboardListener.on('change', () => {
+    let paths = clipboardEx.readFilePaths();
     client.channels.fetch(DISCORD_CLIPBOARD_CHANNEL_ID).then(chan => {
         try {
-            let paths = clipboardEx.readFilePaths();
             if (paths.length > 0) {
-                let path = paths[(paths.length - 1)].replaceAll('\\', '/');
-                chan.send({ files: [path] });
+                for (let i = 0; i < paths.length; i++) {
+                    paths[i] = paths[i].replaceAll('\\', '/');
+                }
+                chan.send({ files: paths });
             }
-            else
+            else if (clipboard.readText() != '')
                 chan.send("\n" + clipboard.readText());
         }catch (e) {
             console.log(e);
